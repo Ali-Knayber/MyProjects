@@ -529,15 +529,15 @@ else $target = "admin_page.php";
                     class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
                 </div>
                 <p>
-                  My son, Ali, was failing his software engineering course, but "Teachers" came to the rescue! After
+                  My son, Hassan, was failing his software engineering course, but "Teachers" came to the rescue! After
                   only a few sessions, his grades improved drastically, and he became much more confident in his
                   academic performance!
                   !
                 </p>
                 <div class="profile mt-auto">
                   <img src="./img/testimonials/testimonials-3.jpg" class="testimonial-img" alt="">
-                  <h3>Nariman Knayber</h3>
-                  <h4>Ali's mother</h4>
+                  <h3>Amy Smith</h3>
+                  <h4>Hassan's mother</h4>
                 </div>
               </div>
             </div><!-- End testimonial item -->
