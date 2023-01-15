@@ -1,0 +1,1016 @@
+---
+title: "Algerian Forest Fires"
+date: "2022-12-13"
+output: 
+  html_document:
+      code_folding: hide
+      code_download: true
+      theme: cerulean
+      highlight: espresso
+      number_sections: no
+      toc: yes
+      toc_depth: 3
+      toc_float:
+        collapsed: no
+        smooth_scroll: yes
+  pdf_document:
+      toc: yes
+      toc_depth: '3'
+---
+```{css, echo=FALSE}
+table {
+  font-family: arial, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid #dddddd;
+  text-align: left;
+  padding: 8px;
+}
+
+tr:nth-child(even) {
+  background-color: #dddddd;
+}
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover {
+    background-color: purple;
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(escho = TRUE)
+```
+
+## Packages Needed
+<ul>
+<li>
+<b>install.packages("caret")</b>
+<br>
+The caret package contains functions to streamline the model training process for complex regression and classification problems.
+</li>
+<li>
+<b>install.packages("corrplot")</b>
+<br>
+The corrplot package provides a visual exploratory tool on correlation matrix that supports automatic variable reordering to help detect hidden patterns among variables.
+</li>
+<li>
+<b>install.packages("psych")</b>
+<br>
+A package for personality, psychometric, and psychological research.
+</li>
+<li>
+<b>install.packages("randomForest")</b>
+<br>
+The randomForest packages allows us to create random forests.
+</li>
+<li>
+<b>install.packages("rsample")</b>
+<br>
+The rsample package makes it easy to create resamples for estimating distributions and assessing model performance.
+</li>
+<li>
+<b>install.packages("C50")</b>
+<br>
+We use this package to apply C50 boosting algorithm.
+</li>
+</li>
+<b>install.packages("rpart.plot")</b>
+<br>
+We use this package to plot the ROC curve.
+</li>
+<li>
+<b>install.packages("MASS")</b>
+<br>
+This package includes many useful functions and data examples, including functions for estimating linear models through generalized least squares (GLS), fitting negative binomial linear models, the robust fitting of linear models, and Kruskal's non-metric multidimensional scaling.
+</li>
+<li>
+<b>install.packages('MLeval')</b>
+<br>
+This package is used to calculate the roc curve.
+</li>
+</ul>
+
+## Exploratory Data Analysis
+```{r collapse=TRUE}
+region1Data = read.csv("Algerian_forest_fires_dataset.csv",skip=1, nrows=122)
+#Data of the first region, we skip the name of the first region and only add first 122 rows
+
+region2Data = read.csv("Algerian_forest_fires_dataset.csv",skip=126)
+#Data of the second region, we skip the first 126 lines which include region 1 and name of region 2
+
+allRegionData = rbind(region1Data,region2Data)
+#Data of the whole region, we combine the previous 2 variables
+```
+
+The used dataset "Algerian_forest_fires_dataset.csv" contains 244 observations on two regions of Algeria: the Bejaia and Sidi Bel-abbes, located in the northeast and the northwest of the country respectively. There were a couple issues in the csv file that we fixed manually. We deleted the spacing in the titles of the features and fixed line 171, where there were 2 numbers at DC which resulted in "fire" being at FWI. All other changes to the data were done from the code. We added the updated excel sheet.
+<br>
+It contains 14 features, where Classes(fire or not fire) is our output and the rest of the features are inputs. The description of the dataset is as follows:
+<br>
+<br>
+<table>
+  <tr>
+    <th>Feature</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>Date</td>
+    <td>(DD/MM/YYYY) Day, month ('june' to 'september'), year (2012)</td>
+  </tr>
+  <tr>
+    <td>Temp</td>
+    <td>temperature noon (temperature max) in Celsius degrees: 22 to 42</td>
+  </tr>
+  <tr>
+    <td>RH</td>
+    <td>Relative Humidity in %: 21 to 90</td>
+  </tr>
+  <tr>
+    <td>Ws</td>
+    <td>Wind speed in km/h: 6 to 29</td>
+  </tr>
+  <tr>
+    <td>Rain</td>
+    <td>total day in mm: 0 to 16.8</td>
+  </tr>
+  <tr>
+    <td>FFMC</td>
+    <td>Fine Fuel Moisture Code index from the FWI system: 28.6 to 92.5</td>
+  </tr>
+   <tr>
+    <td>DMC</td>
+    <td>Duff Moisture Code index from the FWI system: 1.1 to 65.9</td>
+  </tr>
+    <tr>
+    <td>DC</td>
+    <td>Drought Code index from the FWI system: 7 to 220.4</td>
+  </tr>
+    <tr>
+    <td>ISI</td>
+    <td>Initial Spread Index index from the FWI system: 0 to 18.5</td>
+  </tr>
+   <tr>
+    <td>BUI</td>
+    <td>Build-up Index (BUI) index from the FWI system: 1.1 to 68</td>
+  </tr>
+   <tr>
+    <td>FWI</td>
+    <td>Fire Weather Index: 0 to 31.1</td>
+  </tr>
+   <tr>
+    <td>Classes</td>
+    <td>Two classes, namely "fire" and "not fire"</td>
+  </tr>
+</table>
+
+<br>
+
+We will be building models and analyzing the data in the regions. Some models were made on regions 1 and 2 alone, but our main focus was on the whole region to generalize. We can see below a summary of the features, in addition to the exact number of rows and columns. As expected, the 244 observations are divided equally across the 2 regions.
+```{r collapse=TRUE}
+summary(region1Data)
+dim(region1Data)
+summary(region2Data)
+dim(region2Data)
+summary(allRegionData)
+dim(allRegionData)
+
+```
+
+
+
+## Dividing the data
+```{r collapse=TRUE}
+library(caret)
+#use caret library
+df <- as.data.frame(df)
+
+set.seed(55)
+#Set seed to get consistent results
+
+
+region1Train = sample(nrow(region1Data),nrow(region1Data)/2)
+region2Train = sample(nrow(region2Data),nrow(region2Data)/2)
+allRegionTrain = sample(nrow(allRegionData),nrow(allRegionData)/2)
+#assigning the training data randomly
+
+region1Data <- data.frame(region1Data)
+region1TrainData <- region1Data[region1Train,]
+region1TestData <- region1Data[-region1Train,]
+
+region2Data <- data.frame(region2Data)
+region2TrainData <- region2Data[region2Train,]
+region2TestData <- region2Data[-region2Train,]
+
+allRegionTrainData <- allRegionData[allRegionTrain,]
+allRegionTestData <- allRegionData[-allRegionTrain,]
+#using the random numbers to assign the training and test sets
+
+```
+
+
+
+
+## Feature Selection
+We will apply feature selection to reduce the features which aren't significant.
+```{r collapse=TRUE}
+library(psych)
+library(corrplot)
+library(randomForest)
+
+tempRegion1Data = region1Data
+tempRegion2Data = region2Data
+tempWholeRegionData = allRegionData
+#saving the data in temporary variables
+
+tempRegion1Data$Classes <- as.factor(trimws(tempRegion1Data$Classes))
+levels(tempRegion1Data$Classes) <- c('fire','not_fire')
+tempRegion1Data$Classes <- unclass(factor(tempRegion1Data$Classes))
+#trimming the data, changing the classes to fire and not_fire(to avoid spacing issues) and using unclass to change them to numerical data where fire = 1 and not_fire = 2
+
+tempRegion2Data$Classes <- as.factor(trimws(tempRegion2Data$Classes))
+levels(tempRegion2Data$Classes) <- c('fire','not_fire')
+tempRegion2Data$Classes <- unclass(factor(tempRegion2Data$Classes))
+
+tempWholeRegionData$Classes <- as.factor(trimws(tempWholeRegionData$Classes))
+levels(tempWholeRegionData$Classes) <- c('fire','not_fire')
+tempWholeRegionData$Classes <- unclass(factor(tempWholeRegionData$Classes))
+```
+
+### Region 1
+```{r collapse=TRUE}
+sapply(tempRegion1Data, class)
+#some of the feature are of integer type not numerical type
+
+tempRegion1Data$day=as.numeric(tempRegion1Data$day)
+tempRegion1Data$month=as.numeric(tempRegion1Data$month)
+tempRegion1Data$year=as.numeric(tempRegion1Data$year)
+tempRegion1Data$Temperature=as.numeric(tempRegion1Data$Temperature)
+tempRegion1Data$RH=as.numeric(tempRegion1Data$RH)
+tempRegion1Data$Ws=as.numeric(tempRegion1Data$Ws)
+tempRegion1Data$Classes=as.numeric(tempRegion1Data$Classes)
+tempRegion1Data = subset(tempRegion1Data, select = -c(year) )
+#changing all integer columns to numeric to create the correlation matrix, we also removed year since it is the same in all observation and it's not significant
+
+corr_region1_mat <- corr.test(tempRegion1Data)$p
+test1 = cor.mtest(tempRegion1Data, conf.level = 0.95)
+
+randomForestRegion1 <- randomForest(as.factor(Classes) ~., data=tempRegion1Data)
+importance(randomForestRegion1)
+#applying random forest to see most important features
+
+#plotting a cluster to see the significance of features
+cor(tempRegion1Data)
+corrplot(cor(tempRegion1Data),p.mat = test1$p, sig.level = 0.10, order = 'hclust', addrect = 2)
+```
+
+### Region 2
+```{r collapse=TRUE}
+tempRegion2Data$day=as.numeric(tempRegion2Data$day)
+tempRegion2Data$month=as.numeric(tempRegion2Data$month)
+tempRegion2Data$year=as.numeric(tempRegion2Data$year)
+tempRegion2Data$Temperature=as.numeric(tempRegion2Data$Temperature)
+tempRegion2Data$RH=as.numeric(tempRegion2Data$RH)
+tempRegion2Data$Ws=as.numeric(tempRegion2Data$Ws)
+tempRegion2Data$Classes=as.numeric(tempRegion2Data$Classes)
+tempRegion2Data = subset(tempRegion2Data, select = -c(year) )
+
+corr_region2_mat <- corr.test(tempRegion2Data)$p
+test2 = cor.mtest(tempRegion2Data, conf.level = 0.95)
+
+randomForestRegion2 <- randomForest(as.factor(Classes) ~., data=tempRegion2Data)
+importance(randomForestRegion2)
+
+cor(tempRegion2Data)
+corrplot(cor(tempRegion2Data),p.mat = test2$p, sig.level = 0.10, order = 'hclust', addrect = 2)
+
+```
+
+### Whole Region
+```{r collapse=TRUE}
+tempWholeRegionData$day=as.numeric(tempWholeRegionData$day)
+tempWholeRegionData$month=as.numeric(tempWholeRegionData$month)
+tempWholeRegionData$year=as.numeric(tempWholeRegionData$year)
+tempWholeRegionData$Temperature=as.numeric(tempWholeRegionData$Temperature)
+tempWholeRegionData$RH=as.numeric(tempWholeRegionData$RH)
+tempWholeRegionData$Ws=as.numeric(tempWholeRegionData$Ws)
+tempWholeRegionData$Classes=as.numeric(tempWholeRegionData$Classes)
+tempWholeRegionData = subset(tempWholeRegionData, select = -c(year) )
+
+corr_region3_mat <- corr.test(tempWholeRegionData)$p
+test3 = cor.mtest(tempWholeRegionData, conf.level = 0.95)
+
+randomForestWholeRegion <- randomForest(as.factor(Classes) ~., data=tempWholeRegionData)
+importance(randomForestWholeRegion)
+
+cor(tempWholeRegionData)
+corrplot(cor(tempWholeRegionData),p.mat = test3$p, sig.level = 0.10, order = 'hclust', addrect = 2)
+
+```
+
+Based on the above details, we expect that in addition to years, we can consider days, months, Ws and RH as not significant. We will take that into consideration while building our models.
+
+
+## Logistic Regression
+
+
+### Region 1
+```{r collapse=TRUE}
+suppressWarnings({
+library(MLeval)
+#remove the warning that we get considering it is a perfect separation
+
+region1TrainData$Classes <- as.factor(trimws(region1TrainData$Classes))
+region1TestData$Classes <- as.factor(trimws(region1TestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(region1TrainData$Classes) <- c('fire','not_fire')
+levels(region1TestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+LRspecs <- trainControl(method="cv", number=10, savePredictions="all", classProbs=TRUE)
+#save in LRspecs the specifications of the training method used
+
+region1LRmodel <- train(Classes ~ ., data=region1TrainData, method="glm", family=binomial, trControl=LRspecs)
+#create the model
+
+variablesImportance = varImp(region1LRmodel)
+print(variablesImportance)
+#check the important variables
+
+predictions = predict(region1LRmodel, newdata = region1TestData)
+LRmatrixR1 = confusionMatrix(data=predictions,region1TestData$Classes)
+LRmatrixR1
+#check the predictions and create a confusion matrix to see its effectiveness
+
+})
+```
+
+```{r collapse=TRUE}
+LRmatrixR1$byClass
+#show important metrics
+```
+
+Although the results are good with a 90% accuracy, 88.5% precision and 93.9% recall. We will reapply it without the features which were proved to be insignificant in our feature selection.
+
+
+```{r collapse=TRUE}
+suppressWarnings({
+region1LRmodel2 <- train(Classes ~ Temperature+Rain+FFMC+DMC+DC+ISI+BUI+FWI, data=region1TrainData, method="glm", family=binomial, trControl=LRspecs)
+#create the model
+
+variablesImportance = varImp(region1LRmodel2)
+print(variablesImportance)
+#check the important variables
+
+predictions = predict(region1LRmodel2, newdata = region1TestData)
+LR2matrixR1 = confusionMatrix(data=predictions,region1TestData$Classes)
+LR2matrixR1
+#show confusion matrix
+})
+
+```
+
+```{r collapse=TRUE}
+LR2matrixR1$byClass
+#show important metric such as precision and recall
+```
+This time, we managed to get a 96.7% accuracy, 96.9% precision and 96.9% recall. This is a great improvement over our previous model.
+
+### Region 2
+```{r collapse=TRUE}
+suppressWarnings({
+#remove the warning that we get considering it is a perfect separation
+
+region2TrainData$Classes <- as.factor(trimws(region2TrainData$Classes))
+region2TestData$Classes <- as.factor(trimws(region2TestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(region2TrainData$Classes) <- c('fire','not_fire')
+levels(region2TestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+region2LRmodel1 <- train(Classes ~ ., data=region2TrainData, method="glm", family=binomial, trControl=LRspecs)
+#create the model
+
+variablesImportance2 = varImp(region2LRmodel1)
+print(variablesImportance2)
+#check the important variables
+
+predictions = predict(region2LRmodel1, newdata = region2TestData)
+LR2matrixR1 = confusionMatrix(data=predictions,region2TestData$Classes)
+#check the predictions and create a confusion matrix to see it's effectiveness
+})
+LR2matrixR1
+
+```
+
+```{r collapse=TRUE}
+LR2matrixR1$byClass
+
+```
+Although the resulting model is a good one with a 98.3% accuracy, 97.6% precision and 100% recall. We will reapply it without the features which were proved to be insignificant in our feature selection.
+
+
+```{r collapse=TRUE}
+suppressWarnings({
+region2LRmodel2 <- train(Classes ~ Temperature+Rain+FFMC+DMC+DC+ISI+BUI+FWI, data=region2TrainData, method="glm", family=binomial, trControl=LRspecs)
+#create the model
+
+variablesImportance2 = varImp(region2LRmodel2)
+print(variablesImportance2)
+#check the important variables
+
+predictions = predict(region2LRmodel2, newdata = region2TestData)
+LR2matrixR2 = confusionMatrix(data=predictions,region2TestData$Classes)
+#check the predictions and create a confusion matrix to see it's effectiveness
+
+LR2matrixR2
+
+})
+
+```
+
+```{r collapse=TRUE}
+LR2matrixR2$byClass
+
+```
+We notice no improvement, but rather a slight decrease in recall and accuracy.
+
+### Whole Region
+```{r collapse=TRUE}
+suppressWarnings({
+#remove the warning that we get considering it is a perfect separation
+
+allRegionTrainData$Classes <- as.factor(trimws(allRegionTrainData$Classes))
+allRegionTestData$Classes <- as.factor(trimws(allRegionTestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(allRegionTrainData$Classes) <- c('fire','not_fire')
+levels(allRegionTestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+allRegionLRmodel1 <- train(Classes ~ ., data=allRegionTrainData, method="glm", family=binomial, trControl=LRspecs)
+#create the model
+
+variablesImportance = varImp(allRegionLRmodel1)
+print(variablesImportance)
+#check the important variables
+
+predictions = predict(allRegionLRmodel1, newdata = allRegionTestData)
+LR1matrixR = confusionMatrix(data=predictions,allRegionTestData$Classes)
+#check the predictions and create a confusion matrix to see it's effectiveness
+
+LR1matrixR
+
+})
+
+
+```
+
+```{r collapse=TRUE}
+ROClr = evalm(allRegionLRmodel1, plots = c("r"))
+#this gives the ROC curve for test set
+
+LR1matrixR$byClass
+
+```
+
+Although the results are good with a 95.9% accuracy, 95.1% precision and 96.7% recall. We will reapply it without the features which were proved to be insignificant in our feature selection.
+
+
+```{r collapse=TRUE}
+suppressWarnings({
+allRegionLRmodel2 <- train(Classes ~ Temperature+Rain+FFMC+DMC+DC+ISI+BUI+FWI, data=allRegionTrainData, method="glm", family=binomial, trControl=LRspecs)
+#create the model
+
+variablesImportance = varImp(allRegionLRmodel2)
+print(variablesImportance)
+#check the important variables
+
+predictions = predict(allRegionLRmodel2, newdata = allRegionTestData)
+LR2matrixR = confusionMatrix(data=predictions,allRegionTestData$Classes)
+#check the predictions and create a confusion matrix to see it's effectiveness
+
+LR2matrixR
+
+
+
+})
+
+```
+
+```{r collapse=TRUE}
+LR2matrixR$byClass
+
+```
+We get slightly lower results.
+
+## LDA
+### Region 1
+```{r collapse=TRUE}
+suppressWarnings({
+  
+
+region1TrainData$Classes <- as.factor(trimws(region1TrainData$Classes))
+region1TestData$Classes <- as.factor(trimws(region1TestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(region1TrainData$Classes) <- c('fire','not_fire')
+levels(region1TestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+
+library(MASS)
+#LDA fitting 
+lda_fit = lda(Classes ~ Temperature + FFMC + DMC + DC + ISI + BUI + FWI, data = tempRegion1Data, susbet = region1TrainData)
+lda_fit
+
+#prediction the test set
+lda_pred = predict(lda_fit, region1TestData)
+lda_class <- lda_pred$class
+names(lda_pred)
+
+
+#Confusion matrix
+LDAmatrix = table(lda_class,region1TestData$Classes)
+LDAmatrix
+})
+```
+
+```{r collapse=TRUE}
+library(ROCR)
+lda_model = lda(Classes ~ .-day-month-Ws-RH, data = tempRegion1Data, susbet = region1TrainData)
+lda_pred = predict(lda_model, region1TestData)
+lda_class = lda_pred$class
+table(lda_class, region1TestData$Classes)
+lda_prediction <- prediction(lda_pred$posterior[,2], region1TestData$Classes) 
+perf <- performance(lda_prediction, "tpr", "fpr")
+plot(perf)
+auc <- performance(lda_prediction, measure = "auc")
+auc <- auc@y.values[[1]]
+print(auc)
+
+```
+
+The results show that applying LDA on region 1 leads to the highest performance, with AUC = 100%. This means that the observations seen as fire are in reality fire, and those that are not fire are seen as no fire. The LDA is performing very good on region 1.
+
+
+### Region 2
+```{r collapse=TRUE}
+suppressWarnings({
+  
+#remove the warning that we get considering it is a perfect separation
+
+region2TrainData$Classes <- as.factor(trimws(region2TrainData$Classes))
+region2TestData$Classes <- as.factor(trimws(region2TestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(region2TrainData$Classes) <- c('fire','not_fire')
+levels(region2TestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+
+library(MASS)
+#LDA fitting 
+lda_fit = lda(Classes ~ .-day-month-Ws-RH, data = tempRegion2Data, susbet = region2TrainData)
+lda_fit
+
+#prediction the test set
+lda_pred = predict(lda_fit, region2TestData)
+lda_class <- lda_pred$class
+
+#Confusion matrix
+table(lda_class,region2TestData$Classes)
+})
+```
+
+
+```{r collapse=TRUE}
+lda_model = lda(Classes ~ .-day-month-Ws-RH, data = tempRegion2Data, susbet = region2TrainData)
+lda_pred = predict(lda_model, region2TestData)
+lda_class = lda_pred$class
+table(lda_class, region2TestData$Classes)
+lda_prediction <- prediction(lda_pred$posterior[,2], region2TestData$Classes) 
+perf <- performance(lda_prediction, "tpr", "fpr")
+plot(perf)
+auc <- performance(lda_prediction, measure = "auc")
+auc <- auc@y.values[[1]]
+print(auc)
+
+```
+
+The results show that LDA method being applied on region 2, shows a high performance, with AUC = 99.63, which is a vey high performance. This means that 99.63% of the observations are seen as fire or not_fire while in reality they are fire or not_fire respectively. And only, 0.37% of the observations are seen fire while they are not_fire and vice versa. This shows that this model is performing very well on region 2.
+
+
+### Whole Region
+```{r collapse=TRUE}
+suppressWarnings({
+  
+#remove the warning that we get considering it is a perfect separation
+
+allRegionTrainData$Classes <- as.factor(trimws(allRegionTrainData$Classes))
+allRegionTestData$Classes <- as.factor(trimws(allRegionTestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(allRegionTrainData$Classes) <- c('fire','not_fire')
+levels(allRegionTestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+library(ROCR)
+library(MASS)
+#LDA fitting 
+lda_fit = lda(Classes ~ .-day-month-Ws-RH, data = tempWholeRegionData, susbet = allRegionTrainData)
+lda_fit
+
+#prediction the test set
+lda_pred = predict(lda_fit, newdata=allRegionTestData)
+lda_class <- lda_pred$class
+
+#Confusion matrix
+table(lda_class,allRegionTestData$Classes)
+})
+```
+```{r collapse=TRUE}
+lda_model = lda(Classes ~ .-day-month-Ws-RH, data = tempWholeRegionData, susbet = allRegionTrainData)
+lda_pred = predict(lda_model, allRegionTrainData)
+lda_class = lda_pred$class
+table(lda_class, allRegionTestData$Classes)
+lda_prediction <- prediction(lda_pred$posterior[,2], allRegionTestData$Classes) 
+perf <- performance(lda_prediction, "tpr", "fpr")
+plot(perf)
+auc <- performance(lda_prediction, measure = "auc")
+auc <- auc@y.values[[1]]
+print(auc)
+
+```
+
+The  performance of the LDA on the whole region is very low: nearly 51.2% means that there is no discrimination capacity to distinguish between the fire class and not_fire class, this shows that the performance of this model is bad.
+If we compare the results between the 3 types of regions (region1, region2, and whole region), we can see that there is no balance between the results, the LDA method being applied on region 1 is performing very well with AUC = 1, while the AUC for the whole region is very bad, almost 52%, showing a high bias generating the results. 
+
+## QDA
+
+### Region 1
+```{r collapse=TRUE}
+suppressWarnings({
+  
+#remove the warning that we get considering it is a perfect separation
+
+region1TrainData$Classes <- as.factor(trimws(region1TrainData$Classes))
+region1TestData$Classes <- as.factor(trimws(region1TestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(region1TrainData$Classes) <- c('fire','not_fire')
+levels(region1TestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+library(ISLR)
+library(dplyr)
+library(caret)
+library(MASS)
+#QDA fitting 
+qda_fit = qda(Classes ~.-day-month-Ws-RH, data = tempRegion1Data, susbet = region1TrainData)
+qda_fit
+
+#prediction the test set
+qda_pred = predict(qda_fit, region1TestData)
+qda_class <- qda_pred$class
+
+#Confusion matrix
+table(qda_class,region1TestData$Classes)
+
+
+})
+```
+
+```{r collapse=TRUE}
+qda_model = qda(Classes ~.-day-month-Ws-RH, data = tempRegion1Data, susbet = region1TrainData)
+qda_pred = predict(qda_model, region1TestData)
+qda_class = qda_pred$class
+table(qda_class, region1TestData$Classes)
+qda_prediction <- prediction(qda_pred$posterior[,2], region1TestData$Classes) 
+perf <- performance(qda_prediction, "tpr", "fpr")
+plot(perf)
+auc <- performance(qda_prediction, measure = "auc")
+auc <- auc@y.values[[1]]
+print(auc)
+```
+
+The performance of this model (on region 1 using QDA), is high with AUC=99.89, this shows that the method is performing very well. This means that 99.89% of the observations are seen as fire or not_fire while in reality they are fire or not_fire respectively. And only, 0.11% of the observations are seen fire while they are not_fire and vice versa. This shows that this model is performing very well on region 1.
+
+### Region 2
+```{r collapse=TRUE}
+suppressWarnings({
+  
+#remove the warning that we get considering it is a perfect separation
+
+region2TrainData$Classes <- as.factor(trimws(region2TrainData$Classes))
+region2TestData$Classes <- as.factor(trimws(region2TestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(region2TrainData$Classes) <- c('fire','not_fire')
+levels(region2TestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+library(ISLR)
+library(dplyr)
+library(caret)
+library(MASS)
+#QDA fitting 
+qda_fit = qda(Classes ~ .-day-month-Ws-RH, data = tempRegion2Data, susbet = region2TrainData)
+qda_fit
+
+#prediction the test set
+qda_pred = predict(qda_fit, region2TestData)
+qda_class <- qda_pred$class
+
+#Confusion matrix
+table(qda_class,region2TestData$Classes)
+})
+```
+```{r collapse=TRUE}
+qda_model = qda(Classes ~ .-day-month-Ws-RH, data = tempRegion2Data, susbet = region2TrainData)
+qda_pred = predict(qda_model, region2TestData)
+qda_class = qda_pred$class
+table(qda_class, region2TestData$Classes)
+qda_prediction <- prediction(qda_pred$posterior[,2], region2TestData$Classes) 
+perf <- performance(qda_prediction, "tpr", "fpr")
+plot(perf)
+auc <- performance(qda_prediction, measure = "auc")
+auc <- auc@y.values[[1]]
+print(auc)
+```
+
+The results show that the AUC= 99.87% which is almost the same as for the region 1. This shows that the model is performing very well. This means that 99.87% of the observations are seen as fire or not_fire while in reality they are fire or not_fire respectively. And only, 0.13% of the observations are seen fire while they are not_fire and vice versa. This shows that this model is performing very well on region 2.
+
+### Whole Region
+```{r collapse=TRUE}
+suppressWarnings({
+  
+#remove the warning that we get considering it is a perfect separation
+
+allRegionTrainData$Classes <- as.factor(trimws(allRegionTrainData$Classes))
+allRegionTestData$Classes <- as.factor(trimws(allRegionTestData$Classes))
+#remove the spaces to avoid dividing it into more than 2 categories
+
+levels(allRegionTrainData$Classes) <- c('fire','not_fire')
+levels(allRegionTestData$Classes) <- c('fire','not_fire')
+#rename the labels to avoid getting errors from having a space in "not fire"
+
+library(caret)
+library(MASS)
+#QDA fitting 
+qda_fit = qda(Classes ~ .-day-month-Ws-RH, data = tempWholeRegionData, susbet = allRegionTrainData)
+qda_fit
+
+#prediction the test set
+qda_pred = predict(qda_fit, allRegionTestData)
+qda_class <- qda_pred$class
+
+#Confusion matrix
+table(qda_class,allRegionTestData$Classes)
+#confusionMatrix(tempWholeRegionData$Classes, qda_class)
+})
+```
+```{r collapse=TRUE}
+qda_model = qda(Classes ~ .-day-month-Ws-RH, data = tempWholeRegionData, susbet = allRegionTrainData)
+qda_pred = predict(qda_model, allRegionTestData)
+qda_class = qda_pred$class
+table(qda_class, allRegionTestData$Classes)
+qda_prediction <- prediction(qda_pred$posterior[,2], allRegionTestData$Classes) 
+perf <- performance(qda_prediction, "tpr", "fpr")
+plot(perf)
+auc <- performance(qda_prediction, measure = "auc")
+auc <- auc@y.values[[1]]
+print(auc)
+```
+The results show that the performance of the QDA model applied on the whole regions is way higher than the one of the LDA, where the AUC was nearly 52%. However, here in our case the performance is almost the highest between all the other methods being generated on different regions with AUC = 99.97%. This shows that QDA method applied on region1, region2, and whole region is performing the best. QDA is outperforming LDA, especially that the balance is seen in the QDA model results where all values of AUC of the ROC curve are above 99.8%.
+
+## KNN
+
+### Region 1
+```{r collapse=TRUE}
+set.seed(55)
+
+region1KnnModel <- train(Classes ~ ., data=region1TrainData, method="knn",  tuneGrid=expand.grid(k = 1:10), trControl=LRspecs)
+#applying KNN with k=10
+
+plot(region1KnnModel)
+#plot k based on accuracy
+
+region1KnnModel
+#show the results and get best k that was used to train the model
+
+predictions = predict(region1KnnModel, newdata = region1TestData)
+#predict based on the trained model
+
+knn1MatrixR1 = confusionMatrix(data=predictions,region1TestData$Classes)
+
+knn1MatrixR1
+knn1MatrixR1$byClass
+#show confusion matrix and the values of the various metrics
+```
+The optimal k that was used for region 1 is k=4, the model gave a good accuracy, recall and precision. The numbers are 85.2%, 96.9% and 80% respectively. We will try to apply feature selection to achieve better precision.
+
+```{r collapse=TRUE}
+region1KnnModel2 <- train(Classes ~ Temperature+Rain+FFMC+DMC+DC+ISI+BUI+FWI, data=region1TrainData, method="knn",  tuneGrid=expand.grid(k = 1:10), trControl=LRspecs)
+
+plot(region1KnnModel2)
+
+region1KnnModel2
+
+predictions = predict(region1KnnModel2, newdata = region1TestData)
+
+knn1MatrixR1 = confusionMatrix(data=predictions,region1TestData$Classes)
+
+knn1MatrixR1
+knn1MatrixR1$byClass
+```
+The optimal k this time is k=3, the model gave a better accuracy(91.8%) and precision(88.8%), and similar recall(96.9%). As such, using less features in the case of KNN gave us better results, thus improving our predictions.
+
+
+### Region 2
+```{r collapse=TRUE}
+region2KnnModel <- train(Classes ~ ., data=region2TrainData, method="knn",  tuneGrid=expand.grid(k = 1:10), trControl=LRspecs)
+
+plot(region2KnnModel)
+
+region2KnnModel
+
+predictions = predict(region2KnnModel, newdata = region2TestData)
+knn1MatrixR2 = confusionMatrix(data=predictions,region2TestData$Classes)
+
+knn1MatrixR2
+knn1MatrixR2$byClass
+```
+k=8 was the optimal k-value in region 2, giving us an accuracy of 90.1%, a recall of 90.2%, and a precision of 94.8%. These values are good considering we are using all features, but we will try and improve them further with feature selection.
+
+```{r collapse=TRUE}
+region2KnnModel <- train(Classes ~ Temperature+Rain+FFMC+DMC+DC+ISI+BUI+FWI, data=region2TrainData, method="knn",  tuneGrid=expand.grid(k = 1:10), trControl=LRspecs)
+
+plot(region2KnnModel)
+
+region2KnnModel
+
+predictions = predict(region2KnnModel, newdata = region2TestData)
+
+knn1MatrixR1 = confusionMatrix(data=predictions,region2TestData$Classes)
+
+knn1MatrixR1
+knn1MatrixR1$byClass
+```
+The optimal k this time is k=2, the model gave a better accuracy(95%), precision(95.2%), and  recall(97.5%). As such, using less features in the case of KNN gave us better results, thus improving our predictions.
+
+### Whole Region
+```{r collapse=TRUE}
+allRegionKnnModel <- train(Classes ~ ., data=allRegionTrainData, method="knn",  tuneGrid=expand.grid(k = 1:10), trControl=LRspecs)
+
+
+plot(allRegionKnnModel)
+
+allRegionKnnModel
+
+predictions = predict(allRegionKnnModel, newdata = allRegionTestData)
+knn1MatrixR = confusionMatrix(data=predictions,allRegionTestData$Classes)
+
+knn1MatrixR
+knn1MatrixR$byClass
+```
+The optimal k that was chosen is k=10. It gives 86.8% accuracy, 93.4% recall and 82.6% precision. The results decreased since we are now using a larger dataset, but we expect these results can improve further when we apply feature selection.
+```{r collapse=TRUE}
+
+ROCKNN = evalm(allRegionKnnModel, plots = c("r"))
+```
+
+```{r collapse=TRUE}
+allRegionKnnModel <- train(Classes ~ Temperature+Rain+FFMC+DMC+DC+ISI+BUI+FWI, data=allRegionTrainData, method="knn",  tuneGrid=expand.grid(k = 1:10), trControl=LRspecs)
+
+plot(allRegionKnnModel)
+
+allRegionKnnModel
+
+predictions = predict(allRegionKnnModel, newdata = allRegionTestData)
+
+knn2MatrixR = confusionMatrix(data=predictions,allRegionTestData$Classes)
+
+knn2MatrixR
+knn2MatrixR$byClass
+```
+The optimal k this time is k=1, and as expected, the results have improved. Accuracy increased to 96.7%, recall increased to 98.3% and precision increased to 95.2%.
+```{r collapse=TRUE}
+
+ROCKNN = evalm(allRegionKnnModel, plots = c("r"))
+```
+
+## Tree-Based Methods
+We apply the various tree-based methods on the whole region only, since that is what we will use in our comparison.
+
+### Bagging
+```{r collapse=TRUE}
+library(rsample)
+library(caret)
+
+set.seed(55)
+
+bagging <- train(Classes~., data=allRegionTrainData, method="treebag", metric="Accuracy", trControl=LRspecs)
+#bagging
+bagging
+
+predictions = predict(bagging, newdata = allRegionTestData)
+
+baggingMatrix1 = confusionMatrix(data=predictions,allRegionTestData$Classes)
+baggingMatrix1
+baggingMatrix1$byClass
+
+```
+
+Bagging did a great job with a 97.5% accuracy, 100% precision and 95% recall. We will not apply feature selection as the results are already good.
+
+```{r collapse=TRUE}
+ROCBagging = evalm(bagging, plots = c("r"))
+```
+
+### Random forest
+
+```{r collapse=TRUE}
+set.seed(55)
+
+randomForest <- train(Classes~., data=allRegionTrainData, method="rf", metric="Accuracy", trControl=LRspecs)
+#random forest
+randomForest
+
+predictions = predict(randomForest, newdata = allRegionTestData)
+
+rfMatrix1 = confusionMatrix(data=predictions,allRegionTestData$Classes)
+rfMatrix1
+rfMatrix1$byClass
+
+```
+The results are exactly like those of bagging. This might be due to the fact that we don't have many features, and random forest is actually an extension over bagging.
+```{r collapse=TRUE}
+ROCBagging = evalm(randomForest, plots = c("r"))
+```
+
+### Boosting
+
+```{r collapse=TRUE}
+suppressWarnings({
+library(C50)
+set.seed(55)
+
+boosting <- train(Classes~., data=allRegionTrainData, method="C5.0", metric="Accuracy", trControl=LRspecs)
+#C5.0 is an example on boosting
+boosting
+
+})
+```
+```{r collapse=TRUE}
+
+predictions = predict(boosting, newdata = allRegionTestData)
+
+boostingMatrix1 = confusionMatrix(data=predictions,allRegionTestData$Classes)
+boostingMatrix1
+boostingMatrix1$byClass
+```
+Boosting results were even better than the previous models, achieving 98.3% accuracy, precision and recall.
+```{r collapse=TRUE}
+ROCBagging = evalm(boosting, plots = c("r"))
+```
+
+
+## Conclusion
+
+Overall, a good performance was achieved by most models. Logistic regression achieved good results with an AUC-ROC value of 0.91. Decreasing features in this model made the results slightly worse. QDA and LDA both achieved good accuracy, although QDA did perform better. KNN gave us one of the best results in metrics, while also achieving an AUC-ROC of 0.92. However, we needed to apply feature selection to get such good metrics. The best models are tree-based methods, more specifically bagging, random forest and boosting. All these models achieves very high percentages in accuracy, precision and recall. They all achieved 0.99-1 ROC-AUC value which is quite impressive. In conclusion, we believe using a tree-based methods or QDA would give the best possible models. Nonetheless, it is worth noting that almost all models will give good predictions, except LDA.
+
+<table>
+  <tr>
+    <th>Model</th>
+    <th>AUC-ROC</th>
+  </tr>
+  <tr>
+    <td>Logistic Regression</td>
+    <td>0.91</td>
+  </tr>
+  <tr>
+    <td>LDA (Feature Selection) </td>
+    <td>0.51</td>
+  </tr>
+  <tr>
+    <td>QDA (Feature Selection)</td>
+    <td>0.99</td>
+  </tr>
+  <tr>
+    <td>KNN (Feature Selection)</td>
+    <td>0.94</td>
+  </tr>
+  <tr>
+    <td>Bagging</td>
+    <td>0.99</td>
+  </tr>
+  <tr>
+    <td>Random Forest</td>
+    <td>1</td>
+  </tr>
+   <tr>
+    <td>Boosting</td>
+    <td>0.99</td>
+  </tr>
+</table>

@@ -1,0 +1,235 @@
+---
+title: "Fuel Economy"
+date: "(October 26, 2022)"
+output:
+  html_document:
+    theme: readable
+    highlight: espresso
+    number_sections: no
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+    pdf_document:
+      toc: yes
+      toc_depth: '3'
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+<style type="text/css">
+#TOC {
+  color: #30983A;
+  border-color: #4F6967;
+}
+</style>
+
+```{css, echo=FALSE}
+span.a {
+    text-decoration: underline;
+}
+span.b {
+    color: red;
+    font-size: larger;
+}
+
+```
+
+Fuel economy is particularly important for the automobile industry. The purpose of this assignment is to write an R script to present graphically a correlation matrix, to identify the various features which may impact fuel economy (miles per gallon) and to construct a regression model in order to predict the fuel consumption of future car brands according to the various features of the car.
+
+***
+
+# Packages Needed
+install.packages("corrplot")<br>
+install.packages("psych")<br>
+install.packages("ggplot2")<br>
+install.packages("reshape2")<br>
+install.packages("DT")
+
+***
+
+# Libraries
+```{r collapse=TRUE}
+library(corrplot)
+library("psych")
+library(ggplot2)
+library(reshape2)
+library(DT)
+```
+
+***
+
+# Reading Data
+We read the data from the csv file and saved into dataCar. We then printed the data to check it.
+```{r collapse=TRUE}
+cars <- read.csv("cars.csv")
+dataCar <- cars
+datatable(dataCar, rownames = FALSE, filter="top", options = list(pageLength = 5, scrollX=T) )
+```
+We need to delete the non-numerical part of the document, thus we updated our new table without the name of the cars and we called the variable carClean. We also used str to make sure that the brand was removed and the rest are not categorical.
+```{r collapse=TRUE}
+carClean <- dataCar[2:12]
+str(carClean)
+```
+
+***
+
+# Variables containing P-values
+We created a variable to save the p-values choosing 0.95 as the confidence interval.
+```{r collapse=TRUE}
+corr_car_mat <- corr.test(carClean)$p
+test = cor.mtest(carClean, conf.level = 0.95)
+```
+
+***
+
+# Correlation Matrix {#custom}
+We attached our updated dataset to call the variables directly.
+```{r collapse=TRUE}
+attach(carClean)
+```
+<br>
+We plotted the correlation matrix according to <span class="a">circles</span>
+
+```{r collapse=TRUE}
+corrplot(cor(carClean), method = "circle")
+```
+<br>
+We plotted the correlation matrix according to <span class="a">numbers</span>
+```{r collapse=TRUE}
+corrplot(cor(carClean), method = "number")
+```
+<br>
+The circle method makes it easier to see the significance among the variables, with the number method allowing us to get accurate values.
+
+We crossed out insignificant correlations (in other words the p-value higher to 0.1 was crossed) and rearranged the rows and columns for a clearer pattern and better interpretation
+```{r collapse=TRUE}
+corrplot(cor(carClean),p.mat = test$p, sig.level = 0.10, order = 'hclust', addrect = 2)
+```
+<br>
+Using this plot, we can easily see the variables with positive correlation and those with negative correlation. In fact, the red colors of the represented circles in the correlation matrix show a negative correlation between feature, however, the blue colors show a positive correlation between features. The darker the colors (whether red or blue), the higher the value of positive or negative correlation. The lighter the color the slighter the correlation is existing between features. Furthermore, our correlation matrix, also shows that our output mgp (miles per gallons) has a relationship with our variable, as none was crossed out.
+```{r collapse=TRUE}
+corrplot(cor(carClean),p.mat = test$p, sig.level = 0.10, order = 'hclust', addrect = 2)
+```
+
+We can improve it further by removing duplicates. Hence, we showed half of the correlation matrix, knowing that the other missing part is symmetrical. To make that difference, we modified the type to lower.
+```{r collapse=TRUE}
+corrplot(cor(carClean),p.mat = test$p, sig.level = 0.10 ,type = 'lower',  addrect = 2)
+```
+
+We transformed it into numbers as well for more accurate interpretations.
+```{r collapse=TRUE}
+corrplot(cor(carClean),p.mat = test$p, sig.level = 0.10 ,type = 'lower', method = "number", addrect = 2)
+```
+
+***
+
+# Multiple Linear Regression Models
+We constructed a multiple linear regression model with all the variables.
+```{r collapse=TRUE}
+lm.fit=lm(mpg~cyl+disp+hp+drat+wt+qsec+vs+am+gear+carb,data=carClean)
+summary(lm.fit)
+```
+
+The result is a linear regression model with no significant variables (all of them have p-value higher than 0.1), thus we used the backward selection technique in order to find the variables that are significant and improve our model. We kept on removing the variables with the highest p-value until all our remaining variables are significant.
+<br>
+<span class="b">*Remove cyl</span>
+<br>
+First, we removed the cylinder feature knowing that it has the highest p-value
+```{r collapse=TRUE}
+lm.fit=lm(mpg~disp+hp+drat+wt+qsec+vs+am+gear+carb,data=carClean)
+summary(lm.fit)
+```
+
+<span class="b">*Remove vs</span>
+<br>
+Second, we removed the engine configuration
+```{r collapse=TRUE}
+lm.fit=lm(mpg~disp+hp+drat+wt+qsec+am+gear+carb,data=carClean)
+summary(lm.fit)
+```
+
+<span class="b">*Remove carb</span>
+<br>
+Third, we removed the number of carburators 
+```{r collapse=TRUE}
+lm.fit=lm(mpg~disp+hp+drat+wt+qsec+am+gear,data=carClean)
+summary(lm.fit)
+```
+
+<span class="b">*Remove gear</span>
+<br>
+Fourth, we removed the number of forward gears
+```{r collapse=TRUE}
+lm.fit=lm(mpg~disp+hp+drat+wt+qsec+am,data=carClean)
+summary(lm.fit)
+```
+
+<span class="b">*Remove drat</span>
+<br>
+Fifth, we removed the rear axle ratio
+```{r collapse=TRUE}
+lm.fit=lm(mpg~disp+hp+wt+qsec+am,data=carClean)
+summary(lm.fit)
+```
+
+<span class="b">*Remove disp</span>
+<br>
+Sixth, we removed the displacement (total power the engine can generate) 
+```{r collapse=TRUE}
+lm.fit=lm(mpg~hp+wt+qsec+am,data=carClean)
+summary(lm.fit)
+```
+
+<span class="b">*Remove hp</span>
+<br>
+Seventh, we removed the Gross horsepower
+```{r collapse=TRUE}
+lm.fit4=lm(mpg~wt+qsec+am,data=carClean)
+summary(lm.fit4)
+```
+Finally, left with the 3 remaining features: weight, 1/4 mile time and transmission. We ran a multiple linear regression on them, and found that these variables have high p-value. The weight and 1/4 mile time have a p-value less than 0.001 and the transmission has a p-value less than 0.05. Thus, we we believe that this is a good model to use.
+By analyzing the results showed, we can say that:
+<br>
+1. There is a relationship between the predictors and the response by testing the null hypothesis of whether all the regression coefficients are 0. In addition, F statistic is far from 1 (with a very small p-value = 1.21e-11), indicating evidence against the null hypothesis.
+<br>
+2. The regression coefficient for 1/4 miles time (1.226 approximately) suggests that for every 1/4 miles time, mpg increases by that coefficient. In other words, cars become more economic (or fuel efficient every 1/4 miles time) by almost 1 mpg (or 1.226 mpg).
+<br>
+3. The regression coefficient for weight (-3.9165), suggests that for every 1000 lbs increase, mpg decreases by that coefficient. In other words, cars become less fuel efficient every 1000 lbs increase by almost 4 mpg (or 3.92 mpg).
+<br>
+4. The regression coefficient for transmission is 2.9358, suggests that if the transmission is manual then mpg would increase by that coefficient (2.9358). In other words, cars become more fuel efficient if the transmission chosen is manual by almost 3 mpg (or 2.94 mpg).
+<br>
+5. The multiple R-squared is 0.8497, thus 84.97% of the variance in the data is being explained by the mode, which is a good percentage.
+<br>
+6. The intercept is not significant, with its p-value being 0.177915. 
+<br>
+
+Then, we studied the interaction effects by pairing features of the last multiple linear regression being studied: 1/4 miles time and transmission - weight and transmission - transmission and 1/4 miles time.
+```{r collapse=TRUE}
+lm.fit2 = lm(mpg~wt*qsec+wt*am+qsec*am, data=carClean)
+summary(lm.fit2)
+
+```
+From the correlation matrix, we obtained the 3 highest correlated pairs and used them in picking the interaction effects. From the p-values, we can see that the interaction between transmission and weight is statistically significant, while the interaction between weight and ¼ miles per gallons or transmission and ¼ miles per gallons are not, giving respectively 0.202 and 0.626 approximately as p-values.
+<br>
+In other words, if the transmission is automatic and the weight is quite high then the mpg would decrease by the regression coefficient (of the pairs) by 4.71 approximately and hence, the fuel efficiency would decrease by almost 4 mpg if there exist a paring between having an automatic car with high weight. 
+
+
+The model will look like this:
+
+```{r collapse=TRUE}
+ggplot(carClean) + 
+  geom_jitter(aes(wt,mpg), colour="blue") + geom_smooth(aes(wt,mpg), method=lm, se=FALSE) +
+  geom_jitter(aes(am,mpg), colour="green") + geom_smooth(aes(am,mpg), method=lm, se=FALSE) +
+  geom_jitter(aes(qsec,mpg), colour="red") + geom_smooth(aes(qsec,mpg), method=lm, se=FALSE) +
+  labs(x = "wt=Blue, am=Green, qsec=Red", y = "mpg")
+```
+
+<br>
+The result of the model is showing 3 lines: the correlation between mpg with each of wt, am and qsec. Based on the [correlation matrix](#custom), the correlation between mpg and wt is classified as a big dark red color, which shows that it's a highly negative correlation. Furthermore, in the case of am and qsec, the circle representing the correlation between am and mpg is darker and bigger than that representing the correlation between qsec and mpg. However, both are blue indicating a positive correlation. The graph proves these,  as wt (line for blue points) is decreasing, qsec (line for red points) is increasing and am (line for green points) is increasing faster.
+
+***
+
+# Conclusion
+In conclusion, we started with a model that contains all variables and wasn't performing well, to a model that contains only 3 variables and highlighting our most significant variables. We also constructed the correlation matrix, removed the duplicates from it, color-coded the values, rearranged and formatted it to make it clearer. At the end, we were able to plot the linear regression model which showed the correlation between mgp and each of wt, am and qsec. It is also important to note that all the observation was used for training the model. The reason for this is that there aren't a lot of observations, and splitting it would make it more difficult to predict a good model.
